@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KeyVault - Secure Password Manager</title>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; }
+    body { background: #0f172a; color: #f8fafc; display: flex; justify-content: center; min-height: 100vh; padding: 16px; }
+    .container { width: 100%; max-width: 440px; display: flex; flex-direction: column; justify-content: space-between; }
+    .main-content { width: 100%; }
+    .card { background: #1e293b; padding: 22px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); margin-bottom: 20px; }
+    h2 { font-size: 20px; font-weight: 700; margin-bottom: 14px; color: #38bdf8; text-align: center; }
+    
+    /* Auth Switch Buttons */
+    .tab-container { display: flex; gap: 8px; margin-bottom: 18px; }
+    .tab-btn { flex: 1; padding: 10px; background: #334155; border: 1px solid #475569; color: #cbd5e1; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    .tab-btn.active { background: #2563eb; color: #ffffff; border-color: #2563eb; }
+
+    /* Inputs & Select */
+    .input-wrapper { position: relative; width: 100%; margin-bottom: 12px; }
+    input, select { width: 100%; padding: 12px; background: #334155; border: 1px solid #475569; border-radius: 8px; color: #fff; font-size: 14px; }
+    .input-wrapper input { padding-right: 48px; margin-bottom: 0; }
+    input:focus, select:focus { outline: none; border-color: #38bdf8; }
+    
+    .toggle-visibility-btn {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 4px;
+    }
+    .toggle-visibility-btn:hover { color: #38bdf8; }
+
+    button.primary-btn { width: 100%; padding: 12px; background: #2563eb; color: #fff; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; margin-top: 4px; }
+    button.primary-btn:active { transform: scale(0.98); }
+    
+    .btn-secondary { background: transparent; border: 1px solid #475569; color: #cbd5e1; margin-top: 10px; width: 100%; padding: 10px; border-radius: 8px; cursor: pointer; }
+    .btn-link { background: none; border: none; color: #38bdf8; font-size: 13px; cursor: pointer; text-decoration: underline; margin-top: 10px; display: block; width: 100%; text-align: center; }
+    .btn-danger { background: #ef4444; border: none; color: #fff; border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+    .btn-edit { background: #f59e0b; border: none; color: #fff; border-radius: 6px; padding: 6px 12px; font-size: 12px; margin-right: 6px; cursor: pointer; }
+    
+    .hidden { display: none !important; }
+    
+    /* Saved cards */
+    .entry-card { background: #334155; border-radius: 10px; padding: 14px; margin-bottom: 12px; border-left: 4px solid #38bdf8; }
+    .entry-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .entry-header h3 { font-size: 16px; color: #f1f5f9; }
+    
+    .data-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px; color: #cbd5e1; gap: 8px; }
+    .data-content { display: flex; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .data-content strong { margin-right: 6px; color: #94a3b8; font-size: 12px; }
+    .data-row span.val { font-family: monospace; font-size: 13px; color: #e2e8f0; word-break: break-all; }
+    
+    .actions-group { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+    .mini-btn { background: #1e293b; border: 1px solid #475569; color: #38bdf8; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; transition: 0.2s; }
+    .mini-btn:active { background: #38bdf8; color: #0f172a; }
+    .mini-btn.copied { background: #10b981; border-color: #10b981; color: #ffffff; }
+
+    .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 0 4px; }
+    .notification { padding: 10px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; text-align: center; }
+    .success { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #22c55e; }
+    .error { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
+
+    footer { text-align: center; padding: 16px 0 8px 0; color: #94a3b8; font-size: 13px; letter-spacing: 0.5px; }
+    footer span.author { color: #38bdf8; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <div class="main-content">
+      <!-- AUTHENTICATION SCREEN -->
+      <div id="authScreen" class="card">
+        <h2 id="authScreenTitle">KeyVault Access</h2>
+
+        <div class="tab-container" id="tabsHeader">
+          <button id="tabLogin" class="tab-btn active" onclick="switchAuthView('login')">Login</button>
+          <button id="tabSignup" class="tab-btn" onclick="switchAuthView('signup')">Sign Up</button>
+        </div>
+
+        <div id="authAlert" class="hidden"></div>
+
+        <!-- 1. Login Section -->
+        <div id="loginSection">
+          <div class="input-wrapper">
+            <input type="email" id="loginEmail" placeholder="Enter your email" />
+          </div>
+          <div class="input-wrapper">
+            <input type="password" id="loginPassword" placeholder="Enter your password" />
+            <button type="button" class="toggle-visibility-btn" onclick="toggleInputType('loginPassword', this)">👁️</button>
+          </div>
+          <button class="primary-btn" onclick="processLogin()">Login</button>
+          <button type="button" class="btn-link" onclick="switchAuthView('forgot')">Forgot Password / Recover Account?</button>
+        </div>
+
+        <!-- 2. Sign Up Section -->
+        <div id="signupSection" class="hidden">
+          <div class="input-wrapper">
+            <input type="text" id="regName" placeholder="Your Full Name" />
+          </div>
+          <div class="input-wrapper">
+            <input type="email" id="regEmail" placeholder="Create Email Address" />
+          </div>
+          <div class="input-wrapper">
+            <input type="password" id="regPassword" placeholder="Create Master Password" />
+            <button type="button" class="toggle-visibility-btn" onclick="toggleInputType('regPassword', this)">👁️</button>
+          </div>
+          <div class="input-wrapper">
+            <input type="password" id="regConfirmPassword" placeholder="Confirm Password" />
+            <button type="button" class="toggle-visibility-btn" onclick="toggleInputType('regConfirmPassword', this)">👁️</button>
+          </div>
+
+          <!-- Security Question Section -->
+          <div style="margin-bottom: 12px;">
+            <select id="regQuestion">
+              <option value="pet">What is your favorite pet's name?</option>
+              <option value="school">What was the name of your first school?</option>
+              <option value="city">In what city were you born?</option>
+              <option value="food">What is your favorite dish?</option>
+            </select>
+          </div>
+          <div class="input-wrapper">
+            <input type="text" id="regAnswer" placeholder="Answer to Security Question" />
+          </div>
+
+          <button class="primary-btn" style="background: #10b981;" onclick="processRegistration()">Create Account</button>
+        </div>
+
+        <!-- 3. Forgot / Reset Password Section -->
+        <div id="forgotSection" class="hidden">
+          <div class="input-wrapper">
+            <input type="email" id="forgotEmail" placeholder="Registered Email Address" />
+          </div>
+          <div style="margin-bottom: 12px;">
+            <select id="forgotQuestion">
+              <option value="pet">What is your favorite pet's name?</option>
+              <option value="school">What was the name of your first school?</option>
+              <option value="city">In what city were you born?</option>
+              <option value="food">What is your favorite dish?</option>
+            </select>
+          </div>
+          <div class="input-wrapper">
+            <input type="text" id="forgotAnswer" placeholder="Your Security Answer" />
+          </div>
+          <div class="input-wrapper">
+            <input type="password" id="forgotNewPassword" placeholder="Enter New Password" />
+            <button type="button" class="toggle-visibility-btn" onclick="toggleInputType('forgotNewPassword', this)">👁️</button>
+          </div>
+
+          <button class="primary-btn" style="background: #e11d48;" onclick="processPasswordReset()">Reset Password</button>
+          <button type="button" class="btn-secondary" onclick="switchAuthView('login')">Back to Login</button>
+        </div>
+
+      </div>
+
+      <!-- MAIN PASSWORD VAULT SCREEN -->
+      <div id="vaultScreen" class="hidden">
+        <div class="header-bar">
+          <div>
+            <span style="font-size: 12px; color: #94a3b8;">Logged in as:</span>
+            <div id="userDisplay" style="font-size: 14px; font-weight: bold; color: #38bdf8;">user</div>
+          </div>
+          <button class="btn-secondary" style="width: auto; padding: 6px 14px; font-size: 12px;" onclick="processLogout()">Logout</button>
+        </div>
+
+        <!-- Add or Edit Entry Form -->
+        <div class="card">
+          <h2 id="formActionTitle" style="text-align: left; font-size: 16px;">Add New Website Account</h2>
+          <input type="hidden" id="editIndex" value="-1" />
+          
+          <div class="input-wrapper">
+            <input type="text" id="siteName" placeholder="Website / App Name (e.g. Netflix, Gmail)" />
+          </div>
+
+          <div class="input-wrapper">
+            <input type="text" id="siteUsername" placeholder="Username or Login Email" />
+          </div>
+
+          <!-- Password Field with Show/Hide -->
+          <div class="input-wrapper">
+            <input type="password" id="sitePassword" placeholder="Website Password" />
+            <button type="button" class="toggle-visibility-btn" onclick="toggleInputType('sitePassword', this)">👁️</button>
+          </div>
+
+          <!-- Optional Login PIN with Show/Hide -->
+          <div class="input-wrapper">
+            <input type="password" id="sitePin" placeholder="Login PIN (Optional)" />
+            <button type="button" class="toggle-visibility-btn" onclick="toggleInputType('sitePin', this)">👁️</button>
+          </div>
+
+          <button id="saveBtn" class="primary-btn" onclick="saveOrUpdateEntry()">Save Password</button>
+          <button id="cancelBtn" class="btn-secondary hidden" onclick="cancelEditMode()">Cancel Edit</button>
+        </div>
+
+        <!-- Saved Passwords List -->
+        <h3 style="font-size: 16px; margin: 16px 0 10px 4px; color: #e2e8f0;">Your Saved Accounts</h3>
+        <div id="credentialsList"></div>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer>
+      Developed by <span class="author">Khalid Chaudhary</span>
+    </footer>
+
+  </div>
+
+  <script>
+    let activeSessionUser = null;
+
+    function toggleInputType(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (input.type === "password") {
+        input.type = "text";
+        btn.innerText = "🙈";
+      } else {
+        input.type = "password";
+        btn.innerText = "👁️";
+      }
+    }
+
+    function showAlert(message, isSuccess = false) {
+      const alertBox = document.getElementById("authAlert");
+      alertBox.className = "notification " + (isSuccess ? "success" : "error");
+      alertBox.innerText = message;
+      alertBox.classList.remove("hidden");
+    }
+
+    function switchAuthView(mode) {
+      document.getElementById("authAlert").classList.add("hidden");
+      const tabsHeader = document.getElementById("tabsHeader");
+      const title = document.getElementById("authScreenTitle");
+
+      if (mode === "login") {
+        tabsHeader.classList.remove("hidden");
+        title.innerText = "KeyVault Access";
+        document.getElementById("loginSection").classList.remove("hidden");
+        document.getElementById("signupSection").classList.add("hidden");
+        document.getElementById("forgotSection").classList.add("hidden");
+        document.getElementById("tabLogin").classList.add("active");
+        document.getElementById("tabSignup").classList.remove("active");
+      } else if (mode === "signup") {
+        tabsHeader.classList.remove("hidden");
+        title.innerText = "KeyVault Access";
+        document.getElementById("loginSection").classList.add("hidden");
+        document.getElementById("signupSection").classList.remove("hidden");
+        document.getElementById("forgotSection").classList.add("hidden");
+        document.getElementById("tabSignup").classList.add("active");
+        document.getElementById("tabLogin").classList.remove("active");
+      } else if (mode === "forgot") {
+        tabsHeader.classList.add("hidden");
+        title.innerText = "Reset Password";
+        document.getElementById("loginSection").classList.add("hidden");
+        document.getElementById("signupSection").classList.add("hidden");
+        document.getElementById("forgotSection").classList.remove("hidden");
+      }
+    }
+
+    // 1. Sign Up Handler with Security Question
+    function processRegistration() {
+      const name = document.getElementById("regName").value.trim();
+      const email = document.getElementById("regEmail").value.trim().toLowerCase();
+      const pass = document.getElementById("regPassword").value.trim();
+      const confirmPass = document.getElementById("regConfirmPassword").value.trim();
+      const question = document.getElementById("regQuestion").value;
+      const answer = document.getElementById("regAnswer").value.trim().toLowerCase();
+
+      if (!name || !email || !pass || !confirmPass || !answer) {
+        showAlert("Sabhi details aur Security Answer bharna zaroori hai!");
+        return;
+      }
+
+      if (pass !== confirmPass) {
+        showAlert("Passwords match nahi kar rahe hain!");
+        return;
+      }
+
+      const allUsers = JSON.parse(localStorage.getItem("kv_users") || "{}");
+      if (allUsers[email]) {
+        showAlert("Yeh email already registered hai. Login karein.");
+        return;
+      }
+
+      allUsers[email] = { 
+        name: name, 
+        password: pass,
+        question: question,
+        answer: answer
+      };
+      localStorage.setItem("kv_users", JSON.stringify(allUsers));
+
+      showAlert("Account ban gaya! Logging in...", true);
+
+      setTimeout(() => {
+        startUserSession(email);
+      }, 700);
+    }
+
+    // 2. Login Handler
+    function processLogin() {
+      const email = document.getElementById("loginEmail").value.trim().toLowerCase();
+      const pass = document.getElementById("loginPassword").value.trim();
+
+      if (!email || !pass) {
+        showAlert("Email aur Password dono likhein!");
+        return;
+      }
+
+      const allUsers = JSON.parse(localStorage.getItem("kv_users") || "{}");
+
+      if (!allUsers[email] || allUsers[email].password !== pass) {
+        showAlert("Galat Email ya Password! Pehle check karein ya Forgot Password dabayein.");
+        return;
+      }
+
+      startUserSession(email);
+    }
+
+    // 3. Forgot Password / Reset Handler
+    function processPasswordReset() {
+      const email = document.getElementById("forgotEmail").value.trim().toLowerCase();
+      const question = document.getElementById("forgotQuestion").value;
+      const answer = document.getElementById("forgotAnswer").value.trim().toLowerCase();
+      const newPass = document.getElementById("forgotNewPassword").value.trim();
+
+      if (!email || !answer || !newPass) {
+        showAlert("Email, Security Answer aur New Password sabhi bharein!");
+        return;
+      }
+
+      const allUsers = JSON.parse(localStorage.getItem("kv_users") || "{}");
+      const user = allUsers[email];
+
+      if (!user) {
+        showAlert("Is email se koi account nahi mila!");
+        return;
+      }
+
+      if (user.question !== question || user.answer !== answer) {
+        showAlert("Security Question ya Answer galat hai!");
+        return;
+      }
+
+      // Password update
+      user.password = newPass;
+      allUsers[email] = user;
+      localStorage.setItem("kv_users", JSON.stringify(allUsers));
+
+      showAlert("Password successfully badal gaya! Ab login karein.", true);
+
+      setTimeout(() => {
+        document.getElementById("loginEmail").value = email;
+        document.getElementById("loginPassword").value = newPass;
+        switchAuthView("login");
+      }, 1200);
+    }
+
+    function startUserSession(email) {
+      activeSessionUser = email;
+      const allUsers = JSON.parse(localStorage.getItem("kv_users") || "{}");
+      const userName = allUsers[email]?.name || email;
+
+      document.getElementById("userDisplay").innerText = userName + " (" + email + ")";
+      document.getElementById("authScreen").classList.add("hidden");
+      document.getElementById("vaultScreen").classList.remove("hidden");
+
+      renderVaultList();
+    }
+
+    function processLogout() {
+      activeSessionUser = null;
+      document.getElementById("loginEmail").value = "";
+      document.getElementById("loginPassword").value = "";
+      document.getElementById("vaultScreen").classList.add("hidden");
+      document.getElementById("authScreen").classList.remove("hidden");
+      switchAuthView("login");
+    }
+
+    // Vault Data Handlers
+    function getUserRecords() {
+      const allRecords = JSON.parse(localStorage.getItem("kv_user_vaults") || "{}");
+      return allRecords[activeSessionUser] || [];
+    }
+
+    function saveUserRecords(records) {
+      const allRecords = JSON.parse(localStorage.getItem("kv_user_vaults") || "{}");
+      allRecords[activeSessionUser] = records;
+      localStorage.setItem("kv_user_vaults", JSON.stringify(allRecords));
+    }
+
+    function saveOrUpdateEntry() {
+      const site = document.getElementById("siteName").value.trim();
+      const username = document.getElementById("siteUsername").value.trim();
+      const password = document.getElementById("sitePassword").value.trim();
+      const pin = document.getElementById("sitePin").value.trim();
+      const editIndex = parseInt(document.getElementById("editIndex").value);
+
+      if (!site || !username || !password) {
+        alert("Website Name, Username aur Password teeno likhna zaroori hai!");
+        return;
+      }
+
+      const records = getUserRecords();
+      const entryData = { site, username, password, pin: pin || "" };
+
+      if (editIndex >= 0) {
+        records[editIndex] = entryData;
+      } else {
+        records.unshift(entryData);
+      }
+
+      saveUserRecords(records);
+      cancelEditMode();
+      renderVaultList();
+    }
+
+    function editEntry(index) {
+      const records = getUserRecords();
+      const item = records[index];
+
+      document.getElementById("siteName").value = item.site;
+      document.getElementById("siteUsername").value = item.username;
+      document.getElementById("sitePassword").value = item.password;
+      document.getElementById("sitePin").value = item.pin || "";
+      document.getElementById("editIndex").value = index;
+
+      document.getElementById("formActionTitle").innerText = "Update: " + item.site;
+      document.getElementById("saveBtn").innerText = "Update Now";
+      document.getElementById("cancelBtn").classList.remove("hidden");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function deleteEntry(index) {
+      if (confirm("Kya aap sach me is account ko delete karna chahte hain?")) {
+        const records = getUserRecords();
+        records.splice(index, 1);
+        saveUserRecords(records);
+        renderVaultList();
+      }
+    }
+
+    function cancelEditMode() {
+      document.getElementById("siteName").value = "";
+      document.getElementById("siteUsername").value = "";
+      document.getElementById("sitePassword").value = "";
+      document.getElementById("sitePin").value = "";
+      document.getElementById("editIndex").value = "-1";
+      document.getElementById("formActionTitle").innerText = "Add New Website Account";
+      document.getElementById("saveBtn").innerText = "Save Password";
+      document.getElementById("cancelBtn").classList.add("hidden");
+    }
+
+    function toggleCardSecret(spanId, rawSecret, btn) {
+      const el = document.getElementById(spanId);
+      if (el.getAttribute("data-hidden") === "true") {
+        el.innerText = rawSecret;
+        el.setAttribute("data-hidden", "false");
+        btn.innerText = "Hide";
+      } else {
+        el.innerText = "••••••••";
+        el.setAttribute("data-hidden", "true");
+        btn.innerText = "Show";
+      }
+    }
+
+    function copyValue(text, btn) {
+      if (!text) return;
+      const setCopiedUI = () => {
+        const originalText = btn.innerText;
+        btn.innerText = "Copied! ✓";
+        btn.classList.add("copied");
+        setTimeout(() => {
+          btn.innerText = originalText;
+          btn.classList.remove("copied");
+        }, 1500);
+      };
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(setCopiedUI).catch(() => fallbackCopy(text, setCopiedUI));
+      } else {
+        fallbackCopy(text, setCopiedUI);
+      }
+    }
+
+    function fallbackCopy(text, callback) {
+      const tempInput = document.createElement("textarea");
+      tempInput.value = text;
+      tempInput.style.position = "fixed";
+      tempInput.style.left = "-9999px";
+      document.body.appendChild(tempInput);
+      tempInput.focus();
+      tempInput.select();
+      try {
+        document.execCommand('copy');
+        callback();
+      } catch (err) {
+        alert("Copy failed!");
+      }
+      document.body.removeChild(tempInput);
+    }
+
+    function escapeAttr(str) {
+      return (str || "").replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    function renderVaultList() {
+      const container = document.getElementById("credentialsList");
+      const records = getUserRecords();
+      container.innerHTML = "";
+
+      if (records.length === 0) {
+        container.innerHTML = `<div style="text-align: center; color: #64748b; font-size: 14px; margin-top: 20px;">Abhi koi password save nahi hai. Upar se add karein!</div>`;
+        return;
+      }
+
+      records.forEach((rec, idx) => {
+        const card = document.createElement("div");
+        card.className = "entry-card";
+
+        const cleanUser = escapeAttr(rec.username);
+        const cleanPass = escapeAttr(rec.password);
+        const cleanPin = escapeAttr(rec.pin);
+
+        let pinHtml = "";
+        if (rec.pin && rec.pin.trim() !== "") {
+          pinHtml = `
+            <div class="data-row">
+              <div class="data-content">
+                <strong>PIN:</strong> 
+                <span id="pinText_${idx}" class="val" data-hidden="true">••••</span>
+              </div>
+              <div class="actions-group">
+                <button class="mini-btn" onclick="toggleCardSecret('pinText_${idx}', '${cleanPin}', this)">Show</button>
+                <button class="mini-btn" onclick="copyValue('${cleanPin}', this)">Copy</button>
+              </div>
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          <div class="entry-header">
+            <h3>${rec.site}</h3>
+            <div>
+              <button class="btn-edit" onclick="editEntry(${idx})">Edit</button>
+              <button class="btn-danger" onclick="deleteEntry(${idx})">Delete</button>
+            </div>
+          </div>
+
+          <div class="data-row">
+            <div class="data-content">
+              <strong>User:</strong> 
+              <span class="val">${rec.username}</span>
+            </div>
+            <div class="actions-group">
+              <button class="mini-btn" onclick="copyValue('${cleanUser}', this)">Copy</button>
+            </div>
+          </div>
+
+          <div class="data-row">
+            <div class="data-content">
+              <strong>Pass:</strong> 
+              <span id="passText_${idx}" class="val" data-hidden="true">••••••••</span>
+            </div>
+            <div class="actions-group">
+              <button class="mini-btn" onclick="toggleCardSecret('passText_${idx}', '${cleanPass}', this)">Show</button>
+              <button class="mini-btn" onclick="copyValue('${cleanPass}', this)">Copy</button>
+            </div>
+          </div>
+
+          ${pinHtml}
+        `;
+        container.appendChild(card);
+      });
+    }
+  </script>
+</body>
+</html>
